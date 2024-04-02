@@ -9,8 +9,8 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
 //
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -78,7 +78,7 @@ class JT808Server {
   void Init(void);
 
   // 设置服务端地址.
-  void SetServerAccessPoint(std::string const&ip, int const& port) {
+  void SetServerAccessPoint(std::string const& ip, int const& port) {
     ip_ = ip;
     port_ = port;
   }
@@ -93,9 +93,7 @@ class JT808Server {
   // 停止服务线程.
   void Stop(void);
   // 获取当前服务线程运行状态.
-  bool service_is_running(void) const {
-    return service_is_running_;
-  }
+  bool service_is_running(void) const { return service_is_running_; }
 
   //
   //  外部获取和设置当前的通用消息体解析和封装函数, 用于重写或新增命令支持.
@@ -130,9 +128,8 @@ class JT808Server {
   int UpgradeRequest(decltype(socket(0, 0, 0)) const& socket,
                      int const& upgrade_type,
                      std::vector<uint8_t> const& manufacturer_id,
-                     std::string const& version_id,
-                     char const* path);
-  
+                     std::string const& version_id, char const* path);
+
   // 升级请求.
   // Args:
   //     phone:  客户端的终端手机号.
@@ -147,19 +144,25 @@ class JT808Server {
                                   char const* path) {
     for (auto const& item : clients_) {
       if (item.second.msg_head.phone_num == phone) {
-        return UpgradeRequest(item.first, upgrade_type,
-                              manufacturer_id, version_id, path);
+        return UpgradeRequest(item.first, upgrade_type, manufacturer_id,
+                              version_id, path);
       }
     }
     return -1;
   }
-  // 
+  //
   // 多媒体数据上传.
   //
   using MultimediaDataUploadCallback =
-      std::function<void (MultiMediaDataUpload const&)>;
+      std::function<void(MultiMediaDataUpload const&)>;
   void OnMultimediaDataUploaded(MultimediaDataUploadCallback const& callback) {
     multimedia_data_upload_callback_ = callback;
+  }
+
+  // 安装位置信息汇报回调函数
+  using LocationReportCallback = std::function<void(ProtocolParameter const&)>;
+  void InstallLocationReportCallback(LocationReportCallback const& callback) {
+    location_report_callback_ = callback;
   }
 
   // 通用消息封装和发送函数.
@@ -170,8 +173,17 @@ class JT808Server {
   // Returns:
   //     成功返回0, 失败返回-1.
   int PackagingAndSendMessage(decltype(socket(0, 0, 0)) const& socket,
-                              uint32_t const& msg_id,
-                              ProtocolParameter* para);
+                              uint32_t const& msg_id, ProtocolParameter* para);
+
+  // 通过手机号进行通用消息封装和发送函数.
+  // Args:
+  //     socket:  客户端的socket.
+  //     msg_id:  消息ID.
+  //     para: 协议参数.
+  // Returns:
+  //     成功返回0, 失败返回-1.
+  int PackagingAndSendMessageByPhoneNum(std::string phone_num,
+                                        uint32_t const& msg_id);
 
   // 通用消息接收和解析函数.
   // 阻塞函数.
@@ -183,8 +195,7 @@ class JT808Server {
   // Returns:
   //     成功返回0, 失败返回-1.
   int ReceiveAndParseMessage(decltype(socket(0, 0, 0)) const& socket,
-                             int const& timeout,
-                             ProtocolParameter* para);
+                             int const& timeout, ProtocolParameter* para);
 
  private:
   // 等待客户端连接线程处理函数.
@@ -193,21 +204,23 @@ class JT808Server {
   void ServiceHandler(void);
 
   decltype(socket(0, 0, 0)) listen_;  // 监听的socket.
-  std::atomic_bool is_ready_;  // 服务端socket状态.
-  std::string ip_;  // 服务端IP地址.
-  int port_;  // 服务端端口.
+  std::atomic_bool is_ready_;         // 服务端socket状态.
+  std::string ip_;                    // 服务端IP地址.
+  int port_;                          // 服务端端口.
   int max_connection_num_;
   MultimediaDataUploadCallback multimedia_data_upload_callback_;
-  std::thread waiting_thread_;  // 等待客户端连接线程.
+  std::thread waiting_thread_;           // 等待客户端连接线程.
   std::atomic_bool waiting_is_running_;  // 等待客户端连接线程运行标志.
-  std::thread service_thread_;  // 主服务线程.
+  std::thread service_thread_;           // 主服务线程.
   std::atomic_bool service_is_running_;  // 主服务线程运行标志.
-  Packager packager_;  // 通用JT808协议封装器.
-  Parser parser_;  // 通用JT808协议解析器.
+  Packager packager_;                    // 通用JT808协议封装器.
+  Parser parser_;                        // 通用JT808协议解析器.
   // 客户端的socket(key)-客户端的协议参数(value).
   std::map<decltype(socket(0, 0, 0)), ProtocolParameter> clients_;
   // 处于升级状态的客户端连接.
   std::map<decltype(socket(0, 0, 0)), int> is_upgrading_clients_;
+
+  LocationReportCallback location_report_callback_;
 };
 
 }  // namespace libjt808

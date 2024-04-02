@@ -9,8 +9,8 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
 //
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -53,35 +53,41 @@ namespace {
 
 // 显示位置上报信息.
 void PrintLocationReportInfo(ProtocolParameter const& para) {
-  auto const& basic_info = para.parse.location_info;
-  auto const& extension_info = para.parse.location_extension;
-  printf("Location Report:\n");
-  printf("  inout area alarm bit: %d\n", basic_info.alarm.bit.in_out_area);
-  printf("  psoition status: %d\n", basic_info.status.bit.positioning);
-  printf("  latitude: %.6lf\n", basic_info.latitude*1e-6);
-  printf("  longitude: %.6lf\n", basic_info.longitude*1e-6);
-  printf("  atitude: %d\n", basic_info.altitude);
-  printf("  speed: %f\n", basic_info.speed/10.0f);
-  printf("  bearing: %d\n", basic_info.bearing);
-  printf("  time: %s\n", basic_info.time.c_str());
-  printf("  location extension:\n");
-  for (auto const& item : extension_info) {
-    printf("    id:%02X, len: %02X, value:",
-           item.first, static_cast<uint8_t>(item.second.size()));
-    for (auto const& uch: item.second) printf(" %02X", uch);
-    printf("\n");
-  }
-  auto it = extension_info.find(libjt808::kAccessAreaAlarm);
-  if (it != extension_info.end()) {
-    uint8_t location_type;
-    uint32_t area_toute_id;
-    uint8_t direrion;
-    printf("  in or out area and route informartion:\n");
-    if (libjt808::GetAccessAreaAlarmBody(it->second,
-        &location_type, &area_toute_id, &direrion) == 0) {
-      printf("    location type: %d\n", location_type);
-      printf("    id: %04X\n", area_toute_id);
-      printf("    direction: %d\n", direrion);
+  auto const& location_infos = para.parse.location_infos;
+  for (auto const& location_info : location_infos) {
+    auto const& basic_info = location_info.first;
+    auto const& extension_info = location_info.second;
+
+    printf("Location Report:\n");
+    printf("  inout area alarm bit: %d\n", basic_info.alarm.bit.in_out_area);
+    printf("  psoition status: %d\n", basic_info.status.bit.positioning);
+    printf("  latitude: %.6lf\n", basic_info.latitude * 1e-6);
+    printf("  longitude: %.6lf\n", basic_info.longitude * 1e-6);
+    printf("  atitude: %d\n", basic_info.altitude);
+    printf("  speed: %f\n", basic_info.speed / 10.0f);
+    printf("  bearing: %d\n", basic_info.bearing);
+    printf("  time: %s\n", basic_info.time.c_str());
+    printf("  location extension:\n");
+
+    for (auto const& item : extension_info) {
+      printf("    id:%02X, len: %02X, value:", item.first,
+             static_cast<uint8_t>(item.second.size()));
+      for (auto const& uch : item.second) printf(" %02X", uch);
+      printf("\n");
+    }
+
+    auto it = extension_info.find(libjt808::kAccessAreaAlarm);
+    if (it != extension_info.end()) {
+      uint8_t location_type;
+      uint32_t area_toute_id;
+      uint8_t direrion;
+      printf("  in or out area and route informartion:\n");
+      if (libjt808::GetAccessAreaAlarmBody(it->second, &location_type,
+                                           &area_toute_id, &direrion) == 0) {
+        printf("    location type: %d\n", location_type);
+        printf("    id: %04X\n", area_toute_id);
+        printf("    direction: %d\n", direrion);
+      }
     }
   }
 }
@@ -93,9 +99,9 @@ void PrintTerminalParameter(ProtocolParameter const& para) {
   if (!para.terminal_parameter_ids.empty()) {
     for (auto const& id : para.terminal_parameter_ids) {
       auto const& it = para.parse.terminal_parameters.find(id);
-      if (it !=  para.parse.terminal_parameters.end()) {
-        printf("  ID:%08X, Length:%d, Value:",
-               it->first, static_cast<int>(it->second.size()));
+      if (it != para.parse.terminal_parameters.end()) {
+        printf("  ID:%08X, Length:%d, Value:", it->first,
+               static_cast<int>(it->second.size()));
         for (auto const& uch : it->second) printf(" %02X", uch);
         printf("\n");
       }
@@ -133,14 +139,14 @@ int JT808Server::InitServer(void) {
   addr.sin_port = htons(static_cast<uint16_t>(port_));
 #if defined(__linux__)
   addr.sin_addr.s_addr = inet_addr(ip_.c_str());
-  listen_= socket(AF_INET, SOCK_STREAM, 0);
+  listen_ = socket(AF_INET, SOCK_STREAM, 0);
   if (listen_ == -1) {
     printf("%s[%d]: Create socket failed!!!\n", __FUNCTION__, __LINE__);
     return -1;
   }
 #elif defined(_WIN32)
   WSADATA ws_data;
-  if (WSAStartup(MAKEWORD(2,2), &ws_data) != 0) {
+  if (WSAStartup(MAKEWORD(2, 2), &ws_data) != 0) {
     return -1;
   }
   listen_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -151,10 +157,10 @@ int JT808Server::InitServer(void) {
   }
   addr.sin_addr.S_un.S_addr = inet_addr(ip_.c_str());
 #endif
-  if (Bind(listen_, reinterpret_cast<struct sockaddr *>(&addr),
-              sizeof(addr)) == -1) {
-    printf("%s[%d]: Connect to remote server failed!!!\n",
-           __FUNCTION__, __LINE__);
+  if (Bind(listen_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) ==
+      -1) {
+    printf("%s[%d]: Connect to remote server failed!!!\n", __FUNCTION__,
+           __LINE__);
     Close(listen_);
 #if defined(_WIN32)
     WSACleanup();
@@ -199,7 +205,7 @@ int JT808Server::UpgradeRequest(decltype(socket(0, 0, 0)) const& socket,
                                 std::string const& version_id,
                                 char const* path) {
   std::ifstream ifs;
-  ifs.open(path, std::ios::in|std::ios::binary);
+  ifs.open(path, std::ios::in | std::ios::binary);
   if (!ifs.is_open()) {
     printf("%s[%d]: Updrade file open failed !!!\n", __FUNCTION__, __LINE__);
     return -1;
@@ -207,28 +213,28 @@ int JT808Server::UpgradeRequest(decltype(socket(0, 0, 0)) const& socket,
   ifs.seekg(0, std::ios::end);
   size_t length = ifs.tellg();
   ifs.seekg(0, std::ios::beg);
-  std::unique_ptr<char[]> buffer(
-      new char[length], std::default_delete<char[]>());
+  std::unique_ptr<char[]> buffer(new char[length],
+                                 std::default_delete<char[]>());
   ifs.read(buffer.get(), length);
   ifs.close();
   is_upgrading_clients_.insert(std::make_pair(socket, 0));
   auto& para = clients_[socket];
-  para.upgrade_info.manufacturer_id.assign(
-      manufacturer_id.begin(), manufacturer_id.end());
+  para.upgrade_info.manufacturer_id.assign(manufacturer_id.begin(),
+                                           manufacturer_id.end());
   para.upgrade_info.upgrade_type = upgrade_type;
   para.upgrade_info.version_id = version_id;
-  uint16_t max_content = 1023-9-para.upgrade_info.version_id.size();
-  if (length > max_content) {  // 需要分包处理.
+  uint16_t max_content = 1023 - 9 - para.upgrade_info.version_id.size();
+  if (length > max_content) {                   // 需要分包处理.
     para.msg_head.msgbody_attr.bit.packet = 1;  // 进行分包.
     para.msg_head.total_packet =
-        static_cast<uint16_t>(ceil(length*1.0/max_content));
+        static_cast<uint16_t>(ceil(length * 1.0 / max_content));
     para.msg_head.packet_seq = 1;
     size_t len = 0;
     for (size_t i = 0; i < length; i += max_content) {
-      len = length-i;
+      len = length - i;
       if (len > max_content) len = max_content;
-      para.upgrade_info.upgrade_data.assign(
-          buffer.get()+i, buffer.get()+i+len);
+      para.upgrade_info.upgrade_data.assign(buffer.get() + i,
+                                            buffer.get() + i + len);
       if (PackagingAndSendMessage(socket, kTerminalUpgrade, &para) < 0) {
         is_upgrading_clients_.erase(socket);
         return -1;
@@ -241,14 +247,14 @@ int JT808Server::UpgradeRequest(decltype(socket(0, 0, 0)) const& socket,
           para.parse.respone_msg_id != kTerminalUpgrade ||
           para.parse.respone_result != kSuccess) {
         is_upgrading_clients_.erase(socket);
-        return -1;   
+        return -1;
       }
       ++para.msg_head.packet_seq;
     }
     para.msg_head.msgbody_attr.bit.packet = 0;
     para.msg_head.total_packet = 1;
   } else {
-    para.upgrade_info.upgrade_data.assign(buffer.get(), buffer.get()+length);
+    para.upgrade_info.upgrade_data.assign(buffer.get(), buffer.get() + length);
     if (PackagingAndSendMessage(socket, kTerminalUpgrade, &para) < 0) {
       is_upgrading_clients_.erase(socket);
       return -1;
@@ -269,10 +275,10 @@ int JT808Server::UpgradeRequest(decltype(socket(0, 0, 0)) const& socket,
 
 // 根据提供的消息ID以及调用前此函数前对参数的设定, 生成对应的JT808格式消息,
 // 并通过socket发送到服务端.
-int JT808Server::PackagingAndSendMessage(
-    decltype(socket(0, 0, 0)) const& socket,
-    uint32_t const& msg_id,
-    ProtocolParameter* para) {
+int JT808Server::PackagingAndSendMessage(decltype(socket(0, 0, 0))
+                                             const& socket,
+                                         uint32_t const& msg_id,
+                                         ProtocolParameter* para) {
   std::vector<uint8_t> msg;
   para->msg_head.msg_id = msg_id;  // 设置消息ID.
   if (JT808FramePackage(packager_, *para, &msg) < 0) {
@@ -280,27 +286,62 @@ int JT808Server::PackagingAndSendMessage(
     return -1;
   }
   ++para->msg_head.msg_flow_num;  // 每正确生成一条命令, 消息流水号增加1.
-  if (Send(socket, reinterpret_cast<char*>(msg.data()), msg.size(), 0) <= 0) {
+  int ret = 0;
+  if ((ret = Send(socket, reinterpret_cast<char*>(msg.data()), msg.size(),
+                  0)) <= 0) {
     printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);
     return -2;
+  } else {
+    printf("Send[%d]: ", ret);
+    for (auto const& ch : msg) printf("%02X ", ch);
+    printf("\n");
   }
   return 0;
 }
 
+int JT808Server::PackagingAndSendMessageByPhoneNum(std::string phone_num,
+                                                   uint32_t const& msg_id) {
+  auto it = std::find_if(
+      clients_.begin(), clients_.end(),
+      [phone_num](const auto& pair) { return pair.second.msg_head.phone_num == phone_num; });
+
+  if (it == clients_.end()) {
+    printf("%s[%d]: Not found client by %s !!!\n", __FUNCTION__, __LINE__,
+           phone_num.c_str());
+    return -1;
+  }
+  auto para = &it->second;
+  std::vector<uint8_t> msg;
+   para->msg_head.msg_id = msg_id;  // 设置消息ID.
+  if (JT808FramePackage(packager_, *para, &msg) < 0) {
+    printf("%s[%d]: Package message failed !!!\n", __FUNCTION__, __LINE__);
+    return -2;
+  }
+  ++para->msg_head.msg_flow_num;  // 每正确生成一条命令, 消息流水号增加1.
+  int ret = 0;
+  if ((ret = Send(socket, reinterpret_cast<char*>(msg.data()), msg.size(),
+                  0)) <= 0) {
+    printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);
+    return -3;
+  } else {
+    printf("Send[%d]: ", ret);
+    for (auto const& ch : msg) printf("%02X ", ch);
+    printf("\n");
+  }
+  return 0;
+}
 // 阻塞地从socket连接中接收一次数据, 然后按照JT808协议进行解析.
-int JT808Server::ReceiveAndParseMessage(
-    decltype(socket(0, 0, 0)) const& socket,
-    int const& timeout,
-    ProtocolParameter* para) {
+int JT808Server::ReceiveAndParseMessage(decltype(socket(0, 0, 0)) const& socket,
+                                        int const& timeout,
+                                        ProtocolParameter* para) {
   std::vector<uint8_t> msg;
   int ret = -1;
-  int timeout_ms = timeout*1000;  // 超时时间, ms.
+  int timeout_ms = timeout * 1000;  // 超时时间, ms.
   auto tp = std::chrono::steady_clock::now();
-  std::unique_ptr<char[]> buffer(
-      new char[4096], std::default_delete<char[]>());
+  std::unique_ptr<char[]> buffer(new char[4096], std::default_delete<char[]>());
   while (1) {
     if ((ret = Recv(socket, buffer.get(), 4096, 0)) > 0) {
-      msg.assign(buffer.get(), buffer.get()+ret);
+      msg.assign(buffer.get(), buffer.get() + ret);
       break;
     } else if (ret == 0) {
       printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
@@ -310,7 +351,8 @@ int JT808Server::ReceiveAndParseMessage(
     }
     // 检测超时退出.
     if (std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now()-tp).count() >= timeout_ms) {
+            std::chrono::steady_clock::now() - tp)
+            .count() >= timeout_ms) {
       break;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -336,9 +378,9 @@ void JT808Server::WaitHandler(void) {
   }
   struct sockaddr_in addr;
   int len = sizeof(addr);
-  while(waiting_is_running_) {
-    auto socket = Accept(listen_,
-        reinterpret_cast<struct sockaddr *>(&addr), &len);
+  while (waiting_is_running_) {
+    auto socket =
+        Accept(listen_, reinterpret_cast<struct sockaddr*>(&addr), &len);
     if (socket <= 0) {
       printf("%s[%d]: Invalid socket!!!\n", __FUNCTION__, __LINE__);
       break;
@@ -374,14 +416,14 @@ void JT808Server::WaitHandler(void) {
       Close(socket);
       continue;
     }
-    // printf("Connected\n");
+    printf("Connected\n");
     // 设置非阻塞模式.
 #if defined(__linux__)
     int flags = fcntl(socket, F_GETFL, 0);
     fcntl(socket, F_SETFL, flags | O_NONBLOCK);
 #elif defined(_WIN32)
     unsigned long ul = 1;
-    if (ioctlsocket(socket, FIONBIO, (unsigned long *)&ul) == SOCKET_ERROR) {
+    if (ioctlsocket(socket, FIONBIO, (unsigned long*)&ul) == SOCKET_ERROR) {
       printf("%s[%d]: Set socket nonblock failed!!!\n", __FUNCTION__, __LINE__);
       Close(socket);
       continue;
@@ -401,57 +443,81 @@ void JT808Server::ServiceHandler(void) {
   service_is_running_.store(true);
   int ret = -1;
   bool alive = false;
-  std::unique_ptr<char[]> buffer(
-    new char[4096], std::default_delete<char[]>());
+  std::unique_ptr<char[]> buffer(new char[4096], std::default_delete<char[]>());
   std::vector<uint8_t> msg;
-  std::vector<uint16_t> response_cmd = {kResponseCommand,
-      kResponseCommand+sizeof(kResponseCommand)/sizeof(kResponseCommand[0])};
+  std::vector<uint16_t> response_cmd = {
+      kResponseCommand, kResponseCommand + sizeof(kResponseCommand) /
+                                               sizeof(kResponseCommand[0])};
   std::unique_ptr<char[]> data_buffer;
   int total_size = 0;
   int packet_max_size = 0;
-  while(service_is_running_) {
+  while (service_is_running_) {
     for (auto& socket : clients_) {
       // 升级请求时不在此处作处理.
       if (is_upgrading_clients_.find(socket.first) !=
           is_upgrading_clients_.end()) {
-        std::this_thread::sleep_for(std::chrono:: milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
         continue;
       }
       if ((ret = Recv(socket.first, buffer.get(), 4096, 0)) > 0) {
         if (!alive) alive = true;
         msg.assign(buffer.get(), buffer.get() + ret);
-        // printf("Recv[%d]: ", ret);
-        // for (auto const& ch : msg) printf("%02X ", ch);
-        // printf("\n");
+        printf("Recv[%d]: ", ret);
+        for (auto const& ch : msg) printf("%02X ", ch);
+        printf("\n");
         if (JT808FrameParse(parser_, msg, &socket.second) == 0) {
           socket.second.respone_result = kSuccess;
           auto const& msg_id = socket.second.parse.msg_head.msg_id;
           if (msg_id == kLocationReport) {
             PrintLocationReportInfo(socket.second);
+            if (location_report_callback_)
+              location_report_callback_(socket.second);
+          } else if (msg_id == kGetLocationInformationResponse) {
+            PrintLocationReportInfo(socket.second);
+            if (location_report_callback_)
+              location_report_callback_(socket.second);
+          } else if (msg_id == KBatchLocationReport) {
+            PrintLocationReportInfo(socket.second);
+            if (location_report_callback_)
+              location_report_callback_(socket.second);
           } else if (msg_id == kGetTerminalParametersResponse) {
             PrintTerminalParameter(socket.second);
-          } else if (msg_id == kMultimediaDataUpload) {  // 多媒体数据上传.
+          }
+          // else if (msg_id == KRequestSynchronizationTime) {
+          //   if (PackagingAndSendMessage(socket.first,
+          //   KRequestSynchronizationTimeResponse,
+          //                               &socket.second) < 0) {
+          //     printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
+          //     data_buffer.reset();
+          //     Close(socket.first);
+          //     clients_.erase(socket.first);
+          //     break;  // 删除连接时不再继续遍历, 而是重新开始遍历.
+          //   }
+          // }
+          else if (msg_id == kMultimediaDataUpload) {  // 多媒体数据上传.
             // TODO(mengyuming@hotmail.com): 未做分包完整性校验.
             auto& media = socket.second.parse.multimedia_upload;
-            auto const& msg_head =  socket.second.parse.msg_head;
+            auto const& msg_head = socket.second.parse.msg_head;
             auto const& packet_size = media.media_data.size();
             // 检查分包.
             if (msg_head.msgbody_attr.bit.packet == 1) {  // 分包.
               // 分配空间.
               if (msg_head.packet_seq == 1) {  // 第一包.
-                int max_len = (1023-36)*msg_head.total_packet;
-                  data_buffer = std::move(std::unique_ptr<char[]>(
-                      new char[max_len], std::default_delete<char[]>()));
+                int max_len = (1023 - 36) * msg_head.total_packet;
+                data_buffer = std::move(std::unique_ptr<char[]>(
+                    new char[max_len], std::default_delete<char[]>()));
                 // 子包最大的数据长度.
                 packet_max_size = packet_size;
                 total_size = 0;
               }
-              memcpy(&(data_buffer[packet_max_size*(msg_head.packet_seq-1)]),
+              memcpy(
+                  &(data_buffer[packet_max_size * (msg_head.packet_seq - 1)]),
                   media.media_data.data(), packet_size);
               total_size += packet_size;
               socket.second.respone_result = kSuccess;
               if (PackagingAndSendMessage(socket.first,
-                    kPlatformGeneralResponse, &socket.second) < 0) {
+                                          kPlatformGeneralResponse,
+                                          &socket.second) < 0) {
                 printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
                 data_buffer.reset();
                 Close(socket.first);
@@ -462,18 +528,19 @@ void JT808Server::ServiceHandler(void) {
               if (msg_head.packet_seq == msg_head.total_packet) {
                 media.media_data.clear();
                 media.media_data.assign(data_buffer.get(),
-                    data_buffer.get()+total_size);
+                                        data_buffer.get() + total_size);
                 multimedia_data_upload_callback_(media);
                 media.media_data.clear();
                 media.loaction_report_body.clear();
                 data_buffer.reset();
-                std::this_thread::sleep_for(std::chrono:: milliseconds(100));
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 // 暂时直接返回成功.
                 auto& resp = socket.second.multimedia_upload_response;
                 resp.media_id = media.media_id;
                 resp.reload_packet_ids.clear();
                 if (PackagingAndSendMessage(socket.first,
-                    kMultimediaDataUploadResponse, &socket.second) < 0) {
+                                            kMultimediaDataUploadResponse,
+                                            &socket.second) < 0) {
                   printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
                   Close(socket.first);
                   clients_.erase(socket.first);
@@ -484,9 +551,11 @@ void JT808Server::ServiceHandler(void) {
               multimedia_data_upload_callback_(media);
               media.media_data.clear();
               media.loaction_report_body.clear();
-              socket.second.multimedia_upload_response.media_id = media.media_id;
+              socket.second.multimedia_upload_response.media_id =
+                  media.media_id;
               if (PackagingAndSendMessage(socket.first,
-                  kMultimediaDataUploadResponse, &socket.second) < 0) {
+                                          kMultimediaDataUploadResponse,
+                                          &socket.second) < 0) {
                 printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
                 Close(socket.first);
                 clients_.erase(socket.first);
@@ -496,9 +565,9 @@ void JT808Server::ServiceHandler(void) {
           }
           // 对于非应答类命令默认使用平台通用应答.
           if (find(response_cmd.begin(), response_cmd.end(), msg_id) ==
-                  response_cmd.end()) {
-            if (PackagingAndSendMessage(socket.first,
-                    kPlatformGeneralResponse, &socket.second) < 0) {
+              response_cmd.end()) {
+            if (PackagingAndSendMessage(socket.first, kPlatformGeneralResponse,
+                                        &socket.second) < 0) {
               printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
               Close(socket.first);
               clients_.erase(socket.first);
@@ -510,8 +579,7 @@ void JT808Server::ServiceHandler(void) {
       } else if (ret <= 0) {
         if (ret < 0) {
 #if defined(__linux__)
-          if (errno == EINTR || errno == EAGAIN ||
-              errno == EWOULDBLOCK) {
+          if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
             continue;
           }
 #elif defined(_WIN32)
@@ -527,7 +595,7 @@ void JT808Server::ServiceHandler(void) {
       }
     }
     if (!alive) {
-      std::this_thread::sleep_for(std::chrono:: milliseconds(10));
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     alive = false;
   }

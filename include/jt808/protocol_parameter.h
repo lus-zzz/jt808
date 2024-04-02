@@ -56,6 +56,7 @@ enum SupportedCommands {
   kGetSpecificTerminalParameters = 0x8106,  // 查询指定终端参数.
   kGetTerminalParametersResponse = 0x0104,  // 查询终端参数应答.
   kTerminalUpgrade = 0x8108,  // 下发终端升级包.
+  // kTerminalUpgrade = 0x8109,  // 下发终端升级包.
   kTerminalUpgradeResultReport = 0x0108,  // 终端升级结果通知.
   kLocationReport = 0x0200,  // 位置信息汇报.
   kGetLocationInformation = 0x8201,  // 位置信息查询.
@@ -65,6 +66,11 @@ enum SupportedCommands {
   kDeletePolygonArea = 0x8605,  // 删除多边形区域.
   kMultimediaDataUpload = 0x0801,  // 多媒体数据上传.
   kMultimediaDataUploadResponse = 0x8800,  // 多媒体数据上传应答.
+  KRequestSynchronizationTime = 0x0109,//请求同步时间
+  KRequestSynchronizationTimeResponse = 0x8109,//请求同步时间应答
+  KTimeZoneSynchronizationCommand = 0x1007,//时区同步指令
+  KStandard808ProtocolNotification = 0x0808, //标准808协议通知
+  KBatchLocationReport = 0x0704 //定位数据批量上传
 };
 
 // 所有应答命令.
@@ -74,6 +80,7 @@ constexpr uint16_t kResponseCommand[] = {
   kTerminalRegisterResponse,
   kGetTerminalParametersResponse,
   kGetLocationInformationResponse,
+  KRequestSynchronizationTimeResponse
 };
 
 // 车牌颜色.
@@ -283,10 +290,8 @@ struct ProtocolParameter {
     TerminalParameters terminal_parameters;
     // 解析出的查询终端参数ID列表.
     std::vector<uint32_t> terminal_parameter_ids;
-    // 解析出的位置基本信息.
-    LocationBasicInformation location_info;
-    // 解析出的位置附加信息.
-    LocationExtensions location_extension;
+    // 解析出的位置基本信息. 解析出的位置附加信息.
+    std::vector<std::pair<LocationBasicInformation,LocationExtensions>> location_infos;
     // 解析出的临时位置跟踪控制信息.
     LocationTrackingControl location_tracking_control;
     // 解析出的多边形区域集.
