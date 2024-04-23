@@ -29,15 +29,15 @@
 
 #include "jt808/server.h"
 
+#include <errno.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <errno.h>
-#include <math.h>
 #if defined(__linux__)
 #include <arpa/inet.h>
-#include <netinet/in.h>
 #include <fcntl.h>
+#include <netinet/in.h>
 #endif
 
 #include <algorithm>
@@ -45,7 +45,6 @@
 #include <fstream>
 
 #include "jt808/socket_util.h"
-
 
 namespace libjt808 {
 
@@ -273,6 +272,42 @@ int JT808Server::UpgradeRequest(decltype(socket(0, 0, 0)) const& socket,
   return 0;
 }
 
+int JT808Server::SetBlackoutStatus(std::string phone_num,bool status){
+  auto it = std::find_if(clients_.begin(), clients_.end(),
+                         [phone_num](const auto& pair) {
+                           return pair.second.msg_head.phone_num == phone_num;
+                         });
+
+  if (it == clients_.end()) {
+    printf("%s[%d]: Not found client by %s !!!\n", __FUNCTION__, __LINE__,
+           phone_num.c_str());
+    return -1;
+  }
+  auto para = &it->second;
+  std::vector<uint8_t> msg;
+  para->msg_head.msg_id = libjt808::kSetTerminalParameters;  // 设置消息ID.
+  std::vector<uint8_t> data{0x00,0x00,0x00,0x00};
+  if(status) data[3] = 0x01;
+  SetTerminalParameter(0xF109,std::string(data.begin(),data.end()),&para->terminal_parameters);
+  if (JT808FramePackage(packager_, *para, &msg) < 0) {
+    printf("%s[%d]: Package message failed !!!\n", __FUNCTION__, __LINE__);
+    return -2;
+  }
+  ++para->msg_head.msg_flow_num;  // 每正确生成一条命令, 消息流水号增加1.
+  int ret = 0;
+  if ((ret = Send(it->first, reinterpret_cast<char*>(msg.data()), msg.size(),
+                  0)) <= 0) {
+    printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);
+    return -3;
+  } else {
+    printf("Send[%d]: ", ret);
+    for (auto const& ch : msg) printf("%02X ", ch);
+    printf("\n");
+  }
+  return 0;
+
+}
+
 // 根据提供的消息ID以及调用前此函数前对参数的设定, 生成对应的JT808格式消息,
 // 并通过socket发送到服务端.
 int JT808Server::PackagingAndSendMessage(decltype(socket(0, 0, 0))
@@ -301,9 +336,10 @@ int JT808Server::PackagingAndSendMessage(decltype(socket(0, 0, 0))
 
 int JT808Server::PackagingAndSendMessageByPhoneNum(std::string phone_num,
                                                    uint32_t const& msg_id) {
-  auto it = std::find_if(
-      clients_.begin(), clients_.end(),
-      [phone_num](const auto& pair) { return pair.second.msg_head.phone_num == phone_num; });
+  auto it = std::find_if(clients_.begin(), clients_.end(),
+                         [phone_num](const auto& pair) {
+                           return pair.second.msg_head.phone_num == phone_num;
+                         });
 
   if (it == clients_.end()) {
     printf("%s[%d]: Not found client by %s !!!\n", __FUNCTION__, __LINE__,
@@ -312,14 +348,14 @@ int JT808Server::PackagingAndSendMessageByPhoneNum(std::string phone_num,
   }
   auto para = &it->second;
   std::vector<uint8_t> msg;
-   para->msg_head.msg_id = msg_id;  // 设置消息ID.
+  para->msg_head.msg_id = msg_id;  // 设置消息ID.
   if (JT808FramePackage(packager_, *para, &msg) < 0) {
     printf("%s[%d]: Package message failed !!!\n", __FUNCTION__, __LINE__);
     return -2;
   }
   ++para->msg_head.msg_flow_num;  // 每正确生成一条命令, 消息流水号增加1.
   int ret = 0;
-  if ((ret = Send(socket, reinterpret_cast<char*>(msg.data()), msg.size(),
+  if ((ret = Send(it->first, reinterpret_cast<char*>(msg.data()), msg.size(),
                   0)) <= 0) {
     printf("%s[%d]: Send message failed !!!\n", __FUNCTION__, __LINE__);
     return -3;
@@ -344,6 +380,7 @@ int JT808Server::ReceiveAndParseMessage(decltype(socket(0, 0, 0)) const& socket,
       msg.assign(buffer.get(), buffer.get() + ret);
       break;
     } else if (ret == 0) {
+      if (heartbeat_report_callback_) heartbeat_report_callback_(para->msg_head.phone_num,false);
       printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
       return -2;
     } else {
@@ -417,6 +454,8 @@ void JT808Server::WaitHandler(void) {
       continue;
     }
     printf("Connected\n");
+    if (heartbeat_report_callback_) heartbeat_report_callback_(para.msg_head.phone_num,true);
+    
     // 设置非阻塞模式.
 #if defined(__linux__)
     int flags = fcntl(socket, F_GETFL, 0);
@@ -470,31 +509,18 @@ void JT808Server::ServiceHandler(void) {
           auto const& msg_id = socket.second.parse.msg_head.msg_id;
           if (msg_id == kLocationReport) {
             PrintLocationReportInfo(socket.second);
-            if (location_report_callback_)
-              location_report_callback_(socket.second);
+            if (location_report_callback_) location_report_callback_(msg);
           } else if (msg_id == kGetLocationInformationResponse) {
             PrintLocationReportInfo(socket.second);
-            if (location_report_callback_)
-              location_report_callback_(socket.second);
+            if (location_report_callback_) location_report_callback_(msg);
           } else if (msg_id == KBatchLocationReport) {
             PrintLocationReportInfo(socket.second);
-            if (location_report_callback_)
-              location_report_callback_(socket.second);
+            if (location_report_callback_) location_report_callback_(msg);
           } else if (msg_id == kGetTerminalParametersResponse) {
             PrintTerminalParameter(socket.second);
-          }
-          // else if (msg_id == KRequestSynchronizationTime) {
-          //   if (PackagingAndSendMessage(socket.first,
-          //   KRequestSynchronizationTimeResponse,
-          //                               &socket.second) < 0) {
-          //     printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
-          //     data_buffer.reset();
-          //     Close(socket.first);
-          //     clients_.erase(socket.first);
-          //     break;  // 删除连接时不再继续遍历, 而是重新开始遍历.
-          //   }
-          // }
-          else if (msg_id == kMultimediaDataUpload) {  // 多媒体数据上传.
+          } else if (msg_id == kTerminalHeartBeat) {
+            if (heartbeat_report_callback_) heartbeat_report_callback_(socket.second.parse.msg_head.phone_num,true);
+          } else if (msg_id == kMultimediaDataUpload) {  // 多媒体数据上传.
             // TODO(mengyuming@hotmail.com): 未做分包完整性校验.
             auto& media = socket.second.parse.multimedia_upload;
             auto const& msg_head = socket.second.parse.msg_head;
@@ -519,6 +545,7 @@ void JT808Server::ServiceHandler(void) {
                                           kPlatformGeneralResponse,
                                           &socket.second) < 0) {
                 printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
+                if (heartbeat_report_callback_) heartbeat_report_callback_(socket.second.parse.msg_head.phone_num,false);
                 data_buffer.reset();
                 Close(socket.first);
                 clients_.erase(socket.first);
@@ -542,6 +569,7 @@ void JT808Server::ServiceHandler(void) {
                                             kMultimediaDataUploadResponse,
                                             &socket.second) < 0) {
                   printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
+                  if (heartbeat_report_callback_) heartbeat_report_callback_(socket.second.parse.msg_head.phone_num,false);
                   Close(socket.first);
                   clients_.erase(socket.first);
                   break;  // 删除连接时不再继续遍历, 而是重新开始遍历.
@@ -557,6 +585,7 @@ void JT808Server::ServiceHandler(void) {
                                           kMultimediaDataUploadResponse,
                                           &socket.second) < 0) {
                 printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
+                if (heartbeat_report_callback_) heartbeat_report_callback_(socket.second.parse.msg_head.phone_num,false);
                 Close(socket.first);
                 clients_.erase(socket.first);
                 break;  // 删除连接时不再继续遍历, 而是重新开始遍历.
@@ -569,6 +598,8 @@ void JT808Server::ServiceHandler(void) {
             if (PackagingAndSendMessage(socket.first, kPlatformGeneralResponse,
                                         &socket.second) < 0) {
               printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
+              if (heartbeat_report_callback_) heartbeat_report_callback_(socket.second.parse.msg_head.phone_num,false);
+
               Close(socket.first);
               clients_.erase(socket.first);
               break;  // 删除连接时不再继续遍历, 而是重新开始遍历.
@@ -588,6 +619,7 @@ void JT808Server::ServiceHandler(void) {
 #endif
         }
         printf("%s[%d]: Disconnect !!!\n", __FUNCTION__, __LINE__);
+        if (heartbeat_report_callback_) heartbeat_report_callback_(socket.second.parse.msg_head.phone_num,false);
         Close(socket.first);
         clients_.erase(socket.first);
         if (!alive) alive = true;

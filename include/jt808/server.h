@@ -52,7 +52,12 @@
 #include "terminal_parameter.h"
 
 
+
 namespace libjt808 {
+
+using LocationReportCallback = std::function<void(std::vector<uint8_t> raw_msg)>;
+
+using HeartbeatReportCallback = std::function<void(std::string device_id,bool isConnected)>;
 
 // JT808平台.
 // 已实现了终端注册, 终端鉴权, 心跳包, 位置信息汇报功能.
@@ -160,10 +165,22 @@ class JT808Server {
   }
 
   // 安装位置信息汇报回调函数
-  using LocationReportCallback = std::function<void(ProtocolParameter const&)>;
   void InstallLocationReportCallback(LocationReportCallback const& callback) {
     location_report_callback_ = callback;
   }
+
+  //心跳汇报回调
+  void InstallHeartbeatReportCallback(HeartbeatReportCallback const& callback){
+    heartbeat_report_callback_ = callback;
+  }
+
+  // 通过手机号设置断油电状态
+  // Args:
+  //     phone_num:  客户端的socket.
+  //     status:  true 打开油电 false 关闭油电.
+  // Returns:
+  //     成功返回0, 失败返回-1.
+  int SetBlackoutStatus(std::string phone_num,bool status);
 
   // 通用消息封装和发送函数.
   // Args:
@@ -221,6 +238,7 @@ class JT808Server {
   std::map<decltype(socket(0, 0, 0)), int> is_upgrading_clients_;
 
   LocationReportCallback location_report_callback_;
+  HeartbeatReportCallback heartbeat_report_callback_;
 };
 
 }  // namespace libjt808

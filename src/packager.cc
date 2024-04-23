@@ -266,6 +266,15 @@ int JT808FramePackagerInit(Packager* packager) {
         // 空消息体.
         return 0;
       }));
+  // 0x8105, 终端控制.
+  packager->insert(std::pair<uint16_t, PackageHandler>(
+      kTerminalControl,
+      [](ProtocolParameter const& para, std::vector<uint8_t>* out) {
+        if (out == nullptr) return -1;
+        para.blackout_status ? out->push_back(0x65) : out->push_back(0x64);
+        out->push_back(101);
+        return 0;
+      }));
   // 0x8106, 查询指定终端参数.
   packager->insert(std::pair<uint16_t, PackageHandler>(
       kGetSpecificTerminalParameters,

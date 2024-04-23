@@ -53,6 +53,7 @@ enum SupportedCommands {
   kTerminalAuthentication= 0x0102,  // 终端鉴权.
   kSetTerminalParameters = 0x8103,  // 设置终端参数.
   kGetTerminalParameters = 0x8104,  // 查询终端参数.
+  kTerminalControl = 0x8105,  // 终端控制.
   kGetSpecificTerminalParameters = 0x8106,  // 查询指定终端参数.
   kGetTerminalParametersResponse = 0x0104,  // 查询终端参数应答.
   kTerminalUpgrade = 0x8108,  // 下发终端升级包.
@@ -275,6 +276,8 @@ struct ProtocolParameter {
   MultiMediaDataUploadResponse multimedia_upload_response;
   // 保留字段.
   std::vector<uint8_t> retain;
+  //油电状态true 开油电 false 断油电
+  bool blackout_status{true};
   // 用于解析消息.
   struct {
     uint8_t respone_result;

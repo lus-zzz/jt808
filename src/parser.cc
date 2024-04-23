@@ -425,6 +425,7 @@ int JT808FrameParserInit(Parser* parser) {
             pos += 2 + in[pos + 1];
           }
         }
+        location_infos.clear();
         location_infos.push_back(
             std::pair<LocationBasicInformation, LocationExtensions>(
                 basic_info, extension_info));
@@ -498,6 +499,7 @@ int JT808FrameParserInit(Parser* parser) {
             pos += 2 + in[pos + 1];
           }
         }
+        location_infos.clear();
         location_infos.push_back(
             std::pair<LocationBasicInformation, LocationExtensions>(
                 basic_info, extension_info));
@@ -699,16 +701,16 @@ int JT808FrameParserInit(Parser* parser) {
             in[pos] << 8 | in[pos + 1];  // 位置信息批次大小
         pos += 2;
         unsigned int data_type =
-            in[pos] << 8;  // 位置数据类型 0:正常位置批量汇报；1：盲区补报
+            in[pos];  // 位置数据类型 0:正常位置批量汇报；1：盲区补报
         pos += 1;
+        auto& location_infos = para->parse.location_infos;
+        location_infos.clear();
         for (int i = 0; i < batch_size; i++) {
           unsigned int msg_len = in[pos] << 8 | in[pos + 1];  // 数据大小
           pos += 2;
 
           LocationBasicInformation basic_info;
           LocationExtensions extension_info;
-
-          auto& location_infos = para->parse.location_infos;
 
           U32ToU8Array u32converter;
           // 报警标志.
@@ -739,7 +741,7 @@ int JT808FrameParserInit(Parser* parser) {
           BcdToStringFillZero(bcd, &basic_info.time);
 
           if (msg_len > 28) {  // 位置附加信息项.
-            uint8_t end = msg_len + pos;
+            uint32_t end = msg_len + pos;
             pos += 28;
             std::vector<uint8_t> item_content;
             while (pos <= end - 2) {  // 附加信息长度至少为1.
@@ -751,6 +753,7 @@ int JT808FrameParserInit(Parser* parser) {
               pos += 2 + in[pos + 1];
             }
           }
+
           location_infos.push_back(
               std::pair<LocationBasicInformation, LocationExtensions>(
                   basic_info, extension_info));
